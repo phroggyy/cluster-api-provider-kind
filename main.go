@@ -30,6 +30,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/kind/pkg/cluster"
 
 	infrastructurev1alpha3 "github.com/phroggyy/cluster-api-provider-kind/api/v1alpha3"
 	"github.com/phroggyy/cluster-api-provider-kind/controllers"
@@ -92,6 +93,9 @@ func main() {
 	if err = (&controllers.KindClusterReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		KindProvider: cluster.NewProvider(
+			cluster.ProviderWithDocker(),
+		),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "KindCluster")
 		os.Exit(1)

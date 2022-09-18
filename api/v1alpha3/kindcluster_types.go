@@ -29,7 +29,7 @@ type KindClusterSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	Nodes []*v1alpha4.Node `json:"foo,omitempty"`
+	Nodes []v1alpha4.Node `json:"foo,omitempty"`
 }
 
 // KindClusterStatus defines the observed state of KindCluster
@@ -48,6 +48,15 @@ type KindCluster struct {
 
 	Spec   KindClusterSpec   `json:"spec,omitempty"`
 	Status KindClusterStatus `json:"status,omitempty"`
+}
+
+func (c *KindCluster) ToKindSpec() *v1alpha4.Cluster {
+	cluster := &v1alpha4.Cluster{}
+	cluster.Name = c.Name
+	cluster.Nodes = c.Spec.Nodes
+	v1alpha4.SetDefaultsCluster(cluster)
+
+	return cluster
 }
 
 //+kubebuilder:object:root=true

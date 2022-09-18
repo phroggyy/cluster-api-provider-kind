@@ -23,6 +23,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/kind/pkg/cluster"
+	kindcluster "sigs.k8s.io/kind/pkg/cluster"
 
 	infrastructurev1alpha3 "github.com/phroggyy/cluster-api-provider-kind/api/v1alpha3"
 )
@@ -30,7 +32,8 @@ import (
 // KindClusterReconciler reconciles a KindCluster object
 type KindClusterReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme       *runtime.Scheme
+	KindProvider *cluster.Provider
 }
 
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=kindclusters,verbs=get;list;watch;create;update;patch;delete
@@ -47,11 +50,23 @@ type KindClusterReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.12.2/pkg/reconcile
 func (r *KindClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
 	// TODO(user): your logic here
+	cluster := &infrastructurev1alpha3.KindCluster{}
+	if err := r.Client.Get(ctx, req.NamespacedName, cluster); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
 
-	return ctrl.Result{}, nil
+	if !cluster.DeletionTimestamp.IsZero() {
+		logger.Info("removing deleted cluster", "cluster_name", req.NamespacedName)
+		return ctrl.Result{}, r.deleteCluster(cluster)
+	}
+
+	// check if it's create or update, probably using a finaliser?
+	// r.replaceCluster(cluster)
+
+	return ctrl.Result{}, r.replaceCluster(cluster)
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -59,4 +74,38 @@ func (r *KindClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrastructurev1alpha3.KindCluster{}).
 		Complete(r)
+}
+
+func (r *KindClusterReconciler) deleteCluster(c *infrastructurev1alpha3.KindCluster) error {
+	return nil
+}
+
+func (r *KindClusterReconciler) replaceCluster(cluster *infrastructurev1alpha3.KindCluster) error {
+	clusters, err := r.KindProvider.List()
+
+	if err != nil {
+		return err
+	}
+
+	exists := false
+	for _, c := range clusters {
+		if c == cluster.Name {
+			exists = true
+			break
+		}
+	}
+
+	// KIND doesn't support updating clusters, so we will delete the existing cluster
+	// TODO: (future) some config option whether to replace-on-modify or enable a validator to prevent changes
+	if exists {
+		err = r.KindProvider.Delete(cluster.Name, "")
+		if err != nil {
+			return err
+		}
+	}
+
+	return r.KindProvider.Create(
+		cluster.Name,
+		kindcluster.CreateWithV1Alpha4Config(cluster.ToKindSpec()),
+	)
 }
