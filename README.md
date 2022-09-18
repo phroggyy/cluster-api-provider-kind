@@ -4,6 +4,13 @@
 ## Description
 // TODO(user): An in-depth paragraph about your project and overview of use
 
+Plan of action (alpha):
+1. Run `socat` on local to expose the docker socket over TCP:2375: `socat TCP-LISTEN:2375,reuseaddr,fork UNIX-CONNECT:/var/run/docker.sock`
+1. Use the KIND library (initialised with a custom docker config to use the TCP connection) to manage clusters
+1. Run the controller pod with extended network privileges `NET_RAW` and `NET_ADMIN` (do we need admin? check)
+   to be able to access host network (future improvement: run a separate deployment like https://github.com/qoomon/docker-host
+   to limit which ports are forwarded, and to limit the capabilities granted to a powerful tool like a k8s controller)
+
 ## Getting Started
 You’ll need a Kubernetes cluster to run against. You can use [KIND](https://sigs.k8s.io/kind) to get a local cluster for testing, or run against a remote cluster.
 **Note:** Your controller will automatically use the current context in your kubeconfig file (i.e. whatever cluster `kubectl cluster-info` shows).
