@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/kind/pkg/cluster"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	kindcluster "sigs.k8s.io/kind/pkg/cluster"
 
 	infrastructurev1alpha3 "github.com/phroggyy/cluster-api-provider-kind/api/v1alpha3"
@@ -34,7 +34,7 @@ import (
 type KindClusterReconciler struct {
 	client.Client
 	Scheme       *runtime.Scheme
-	KindProvider *cluster.Provider
+	KindProvider *kindcluster.Provider
 }
 
 const finalizerName = "kind.giantswarm.com/finalizer"
@@ -100,6 +100,10 @@ func (r *KindClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 func (r *KindClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&infrastructurev1alpha3.KindCluster{}).
+		// we filter out changes to status as idempotent changes requires manual diffing of nodes vs spec which is complex,
+		// and executing a replacement on status change means having to replace the cluster for no reason (and is error prone)
+		// ref: https://github.com/kubernetes-sigs/kubebuilder/issues/618
+		WithEventFilter(predicate.GenerationChangedPredicate{}).
 		Complete(r)
 }
 
@@ -129,6 +133,7 @@ func (r *KindClusterReconciler) deleteCluster(cluster *infrastructurev1alpha3.Ki
 func (r *KindClusterReconciler) replaceCluster(cluster *infrastructurev1alpha3.KindCluster) error {
 	// KIND doesn't support updating clusters, so we will delete the existing cluster and create a new one
 	// TODO: (future) some config option whether to replace-on-modify or enable a validator to prevent changes
+
 	if err := r.deleteCluster(cluster); err != nil {
 		return err
 	}
