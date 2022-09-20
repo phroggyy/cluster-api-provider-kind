@@ -26,21 +26,24 @@ import (
 
 // KindClusterSpec defines the desired state of KindCluster
 type KindClusterSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
 	Nodes []v1alpha4.Node `json:"nodes,omitempty"`
 }
 
 // KindClusterStatus defines the observed state of KindCluster
 type KindClusterStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Ready status indicates whether the kind cluster is available
 	Ready bool `json:"ready"`
+	// FailureReason provides a programmatic error code describing a fatal reconciliation failure
+	FailureReason string `json:"failureReason,omitempty"`
+	// FailureMessage provides a detailed summary of the reconciliation failure
+	FailureMessage string `json:"failureMessage,omitempty"`
 }
 
 //+kubebuilder:object:root=true
+//+kubebuilder:resource:categories=cluster-api,shortName=kc
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="Ready",type="boolean",JSONPath=".status.ready",description="Whether the KIND cluster is currently running with the specified configuration"
+//+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // KindCluster is the Schema for the kindclusters API
 type KindCluster struct {

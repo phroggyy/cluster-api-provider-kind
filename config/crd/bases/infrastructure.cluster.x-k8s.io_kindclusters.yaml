@@ -9,13 +9,26 @@ metadata:
 spec:
   group: infrastructure.cluster.x-k8s.io
   names:
+    categories:
+    - cluster-api
     kind: KindCluster
     listKind: KindClusterList
     plural: kindclusters
+    shortNames:
+    - kc
     singular: kindcluster
   scope: Namespaced
   versions:
-  - name: v1alpha3
+  - additionalPrinterColumns:
+    - description: Whether the KIND cluster is currently running with the specified
+        configuration
+      jsonPath: .status.ready
+      name: Ready
+      type: boolean
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha3
     schema:
       openAPIV3Schema:
         description: KindCluster is the Schema for the kindclusters API
@@ -173,10 +186,16 @@ spec:
           status:
             description: KindClusterStatus defines the observed state of KindCluster
             properties:
+              failureMessage:
+                description: FailureMessage provides a detailed summary of the reconciliation
+                  failure
+                type: string
+              failureReason:
+                description: FailureReason provides a programmatic error code describing
+                  a fatal reconciliation failure
+                type: string
               ready:
-                description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
-                  of cluster Important: Run "make" to regenerate code after modifying
-                  this file'
+                description: Ready status indicates whether the kind cluster is available
                 type: boolean
             required:
             - ready
