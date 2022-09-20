@@ -127,27 +127,10 @@ func (r *KindClusterReconciler) deleteCluster(cluster *infrastructurev1alpha3.Ki
 }
 
 func (r *KindClusterReconciler) replaceCluster(cluster *infrastructurev1alpha3.KindCluster) error {
-	clusters, err := r.KindProvider.List()
-
-	if err != nil {
-		return err
-	}
-
-	exists := false
-	for _, c := range clusters {
-		if c == cluster.Name {
-			exists = true
-			break
-		}
-	}
-
 	// KIND doesn't support updating clusters, so we will delete the existing cluster and create a new one
 	// TODO: (future) some config option whether to replace-on-modify or enable a validator to prevent changes
-	if exists {
-		err = r.KindProvider.Delete(cluster.Name, "")
-		if err != nil {
-			return err
-		}
+	if err := r.deleteCluster(cluster); err != nil {
+		return err
 	}
 
 	return r.KindProvider.Create(
