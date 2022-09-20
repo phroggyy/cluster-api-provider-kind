@@ -90,13 +90,9 @@ func (in *KindClusterSpec) DeepCopyInto(out *KindClusterSpec) {
 	*out = *in
 	if in.Nodes != nil {
 		in, out := &in.Nodes, &out.Nodes
-		*out = make([]*v1alpha4.Node, len(*in))
+		*out = make([]v1alpha4.Node, len(*in))
 		for i := range *in {
-			if (*in)[i] != nil {
-				in, out := &(*in)[i], &(*out)[i]
-				*out = new(v1alpha4.Node)
-				(*in).DeepCopyInto(*out)
-			}
+			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
 }

@@ -24,6 +24,7 @@ spec:
       labels:
         control-plane: controller-manager
     spec:
+      # hostNetwork: true
       securityContext:
         runAsNonRoot: true
         # TODO(user): For common cases that do not require escalating privileges
@@ -39,7 +40,11 @@ spec:
         args:
         - --leader-elect
         image: controller:latest
+        imagePullPolicy: Always
         name: manager
+        env:
+          - name: DOCKER_HOST
+            value: tcp://host.docker.internal
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:

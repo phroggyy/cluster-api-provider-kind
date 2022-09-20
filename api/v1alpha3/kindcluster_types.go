@@ -29,13 +29,14 @@ type KindClusterSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	Nodes []v1alpha4.Node `json:"foo,omitempty"`
+	Nodes []v1alpha4.Node `json:"nodes,omitempty"`
 }
 
 // KindClusterStatus defines the observed state of KindCluster
 type KindClusterStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	Ready bool `json:"ready"`
 }
 
 //+kubebuilder:object:root=true

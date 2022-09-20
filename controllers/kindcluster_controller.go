@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/kind/pkg/cluster"
 	kindcluster "sigs.k8s.io/kind/pkg/cluster"
@@ -35,6 +36,8 @@ type KindClusterReconciler struct {
 	Scheme       *runtime.Scheme
 	KindProvider *cluster.Provider
 }
+
+const finalizerName = "kind.giantswarm.com/finalizer"
 
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=kindclusters,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=kindclusters/status,verbs=get;update;patch
@@ -52,21 +55,45 @@ type KindClusterReconciler struct {
 func (r *KindClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
-	// TODO(user): your logic here
 	cluster := &infrastructurev1alpha3.KindCluster{}
 	if err := r.Client.Get(ctx, req.NamespacedName, cluster); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if !cluster.DeletionTimestamp.IsZero() {
-		logger.Info("removing deleted cluster", "cluster_name", req.NamespacedName)
-		return ctrl.Result{}, r.deleteCluster(cluster)
+	if cluster.DeletionTimestamp.IsZero() {
+		if !controllerutil.ContainsFinalizer(cluster, finalizerName) {
+			controllerutil.AddFinalizer(cluster, finalizerName)
+			if err := r.Update(ctx, cluster); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+	} else {
+		if controllerutil.ContainsFinalizer(cluster, finalizerName) {
+			logger.Info("removing deleted cluster", "cluster_name", req.NamespacedName)
+
+			if err := r.deleteCluster(cluster); err != nil {
+				logger.Error(err, "failed to delete KIND cluster")
+				return ctrl.Result{}, err
+			}
+
+			controllerutil.RemoveFinalizer(cluster, finalizerName)
+
+			if err := r.Update(ctx, cluster); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+
+		return ctrl.Result{}, nil
 	}
 
-	// check if it's create or update, probably using a finaliser?
-	// r.replaceCluster(cluster)
+	logger.Info("replacing cluster", "cluster", cluster.Name)
+	if err := r.replaceCluster(cluster); err != nil {
+		return ctrl.Result{}, err
+	}
+	logger.Info("cluster successfully replaced", "cluster", cluster.Name)
 
-	return ctrl.Result{}, r.replaceCluster(cluster)
+	cluster.Status.Ready = true
+	return ctrl.Result{}, r.Status().Update(ctx, cluster)
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -76,8 +103,27 @@ func (r *KindClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *KindClusterReconciler) deleteCluster(c *infrastructurev1alpha3.KindCluster) error {
-	return nil
+func (r *KindClusterReconciler) deleteCluster(cluster *infrastructurev1alpha3.KindCluster) error {
+	clusters, err := r.KindProvider.List()
+
+	if err != nil {
+		return err
+	}
+
+	exists := false
+	for _, c := range clusters {
+		if c == cluster.Name {
+			exists = true
+			break
+		}
+	}
+
+	// if the kind cluster has already been removed (e.g failed to start, manually removed, etc), we don't need to do anything
+	if !exists {
+		return nil
+	}
+
+	return r.KindProvider.Delete(cluster.Name, "")
 }
 
 func (r *KindClusterReconciler) replaceCluster(cluster *infrastructurev1alpha3.KindCluster) error {
@@ -95,7 +141,7 @@ func (r *KindClusterReconciler) replaceCluster(cluster *infrastructurev1alpha3.K
 		}
 	}
 
-	// KIND doesn't support updating clusters, so we will delete the existing cluster
+	// KIND doesn't support updating clusters, so we will delete the existing cluster and create a new one
 	// TODO: (future) some config option whether to replace-on-modify or enable a validator to prevent changes
 	if exists {
 		err = r.KindProvider.Delete(cluster.Name, "")
