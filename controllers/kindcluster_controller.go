@@ -28,6 +28,7 @@ import (
 	kindcluster "sigs.k8s.io/kind/pkg/cluster"
 
 	infrastructurev1alpha3 "github.com/phroggyy/cluster-api-provider-kind/api/v1alpha3"
+	"github.com/phroggyy/cluster-api-provider-kind/errors"
 )
 
 // KindClusterReconciler reconciles a KindCluster object
@@ -86,13 +87,34 @@ func (r *KindClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, nil
 	}
 
+	// if the cluster is currently in the `ready` status, we will first change
+	// the status to let the user know the cluster isn't ready yet (which
+	// will let them use tools like `kubectl wait` properly).
+	if cluster.Status.Ready {
+		logger.Info("starting update, marking as unready")
+		cluster.Status.Ready = false
+
+		return ctrl.Result{
+			Requeue: true,
+		}, r.Status().Update(ctx, cluster)
+	}
+
 	logger.Info("replacing cluster", "cluster", cluster.Name)
 	if err := r.replaceCluster(cluster); err != nil {
+		if codedErr, ok := err.(*errors.CodedError); ok {
+			cluster.Status.FailureReason = codedErr.Code
+			cluster.Status.FailureMessage = codedErr.Error()
+			if err := r.Status().Update(ctx, cluster); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
 		return ctrl.Result{}, err
 	}
 	logger.Info("cluster successfully replaced", "cluster", cluster.Name)
 
 	cluster.Status.Ready = true
+	cluster.Status.FailureMessage = ""
+	cluster.Status.FailureReason = ""
 	return ctrl.Result{}, r.Status().Update(ctx, cluster)
 }
 
@@ -135,11 +157,11 @@ func (r *KindClusterReconciler) replaceCluster(cluster *infrastructurev1alpha3.K
 	// TODO: (future) some config option whether to replace-on-modify or enable a validator to prevent changes
 
 	if err := r.deleteCluster(cluster); err != nil {
-		return err
+		return errors.Code(err, errors.DeleteFailedErr)
 	}
 
-	return r.KindProvider.Create(
+	return errors.Code(r.KindProvider.Create(
 		cluster.Name,
 		kindcluster.CreateWithV1Alpha4Config(cluster.ToKindSpec()),
-	)
+	), errors.CreateFailedErr)
 }

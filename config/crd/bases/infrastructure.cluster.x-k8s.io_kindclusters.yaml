@@ -195,6 +195,7 @@ spec:
                   a fatal reconciliation failure
                 type: string
               ready:
+                default: false
                 description: Ready status indicates whether the kind cluster is available
                 type: boolean
             required:

@@ -32,6 +32,7 @@ type KindClusterSpec struct {
 // KindClusterStatus defines the observed state of KindCluster
 type KindClusterStatus struct {
 	// Ready status indicates whether the kind cluster is available
+	// +kubebuilder:default:=false
 	Ready bool `json:"ready"`
 	// FailureReason provides a programmatic error code describing a fatal reconciliation failure
 	FailureReason string `json:"failureReason,omitempty"`
