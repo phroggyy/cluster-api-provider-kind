@@ -31,11 +31,17 @@ import (
 	"github.com/phroggyy/cluster-api-provider-kind/errors"
 )
 
+type KindProvider interface {
+	List() ([]string, error)
+	Delete(name, explicitKubeconfigPath string) error
+	Create(name string, options ...kindcluster.CreateOption) error
+}
+
 // KindClusterReconciler reconciles a KindCluster object
 type KindClusterReconciler struct {
 	client.Client
 	Scheme       *runtime.Scheme
-	KindProvider *kindcluster.Provider
+	KindProvider KindProvider
 }
 
 const finalizerName = "kind.giantswarm.com/finalizer"

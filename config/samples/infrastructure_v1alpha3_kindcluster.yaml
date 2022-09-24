@@ -3,4 +3,5 @@ kind: KindCluster
 metadata:
   name: kindcluster-sample
 spec:
-  # TODO(user): Add fields here
+  nodes:
+    - role: control-plane
