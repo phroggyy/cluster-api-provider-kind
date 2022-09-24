@@ -21,35 +21,41 @@ In order to use this provider, you need the following installed on your machine:
 1. Install the CAPI components: `clusterctl init`
 1. Clone this repository: `git clone git@github.com:phroggyy/cluster-api-provider-kind.git`
 1. Navigate to the project directory for the KIND provider: `cd cluster-api-provider-kind`
-1. Install the KIND provider: `make install`
+1. Install the KIND CRDs: `make install`
+1. Deploy the controller: `make deploy IMG=phroggyy/cluster-api-provider-kind`
 1. To check if it's installed, try to list your kindclusters: `kubectl get kindcluster` (or `kc` for short)
+
+**Note:** whenever you want the controller to actually interact with your docker agent, you must run `socat`
+on your local machine. See step 1 under Usage.
 
 ### Usage
 
-To create a new cluster, create a CAPI `Cluster` as well as a `KindCluster` resource:
-```sh
-cat <<EOF | kubectl apply -f -
-apiVersion: cluster.x-k8s.io/v1beta1
-kind: Cluster
-metadata:
-  name: capi-demo
-spec:
-  clusterNetwork:
-    pods:
-      cidrBlocks: ["192.168.0.0/16"]
-  infrastructureRef:
-    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
-    kind: KindCluster
-    name: capi-demo
----
-apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
-kind: KindCluster
-metadata:
-  name: capi-demo
-spec:
-  nodes:
-  - role: control-plane
-```
+1. Start `socat`: `socat TCP-LISTEN:2375,reuseaddr,fork UNIX-CONNECT:/var/run/docker.sock`
+1. To create a new cluster, create a CAPI `Cluster` as well as a `KindCluster` resource:
+   ```sh
+   cat <<EOF | kubectl apply -f -
+   apiVersion: cluster.x-k8s.io/v1beta1
+   kind: Cluster
+   metadata:
+     name: capi-demo
+   spec:
+     clusterNetwork:
+       pods:
+         cidrBlocks: ["192.168.0.0/16"]
+     infrastructureRef:
+       apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+       kind: KindCluster
+       name: capi-demo
+   ---
+   apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+   kind: KindCluster
+   metadata:
+     name: capi-demo
+   spec:
+     nodes:
+     - role: control-plane
+   ```
+1. Wait for your cluster to be ready: `kubectl wait --for=jsonpath='{.status.ready}'=true kc capi-demo`
 
 ### Caveats & limitations
 
