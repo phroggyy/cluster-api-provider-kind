@@ -1,21 +1,86 @@
 # cluster-api-provider-kind
-// TODO(user): Add simple overview of use/purpose
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+The Cluster-API (CAPI) Provider for KIND is a provider that creates KIND clusters using the CAPI.
+Unlike other similar providers that launch the KIND image, this provider relies on a TCP-based
+docker host rather than a mounted UNIX socket.
 
-Plan of action (alpha):
-1. Run `socat` on local to expose the docker socket over TCP:2375: `socat TCP-LISTEN:2375,reuseaddr,fork UNIX-CONNECT:/var/run/docker.sock`
-1. Use the KIND library (initialised with a custom docker config to use the TCP connection) to manage clusters
-1. Run the controller pod with extended network privileges `NET_RAW` and `NET_ADMIN` (do we need admin? check)
-   to be able to access host network (future improvement: run a separate deployment like https://github.com/qoomon/docker-host
-   to limit which ports are forwarded, and to limit the capabilities granted to a powerful tool like a k8s controller)
+## Installation & Usage
 
-## Getting Started
+### Prerequisites
+
+In order to use this provider, you need the following installed on your machine:
+
+1. Docker, to run containers
+1. `socat`, to proxy the docker unix socket to TCP
+1. `kind`, to spin up your management cluster
+1. The `clusterctl` CLI, to interact with CAPI
+
+### Installation
+
+1. Create a new KIND cluster: `kind create cluster --name capi-test` (or skip to step 2 if you already have one)
+1. Install the CAPI components: `clusterctl init`
+1. Clone this repository: `git clone git@github.com:phroggyy/cluster-api-provider-kind.git`
+1. Navigate to the project directory for the KIND provider: `cd cluster-api-provider-kind`
+1. Install the KIND provider: `make install`
+1. To check if it's installed, try to list your kindclusters: `kubectl get kindcluster` (or `kc` for short)
+
+### Usage
+
+To create a new cluster, create a CAPI `Cluster` as well as a `KindCluster` resource:
+```sh
+cat <<EOF | kubectl apply -f -
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: capi-demo
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks: ["192.168.0.0/16"]
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+    kind: KindCluster
+    name: capi-demo
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+kind: KindCluster
+metadata:
+  name: capi-demo
+spec:
+  nodes:
+  - role: control-plane
+```
+
+### Caveats & limitations
+
+#### KIND node management
+As KIND does not support managing nodes for a cluster independently, this provider is not entirely compliant
+with CAPI in that there is no distinct `Machine` spec. Due to the same limitations imposed by KIND, this
+provider comes with the caveat that any updates to a `KindCluster` resource will result in the underlying
+cluster being _recreated_ rather than updated. As such, be very cautious about issuing updates, as your existing
+cluster (and all its resources) will be removed.
+
+#### Docker compatibility & requirements
+
+_Note: this provider has only been tested on macOS, and no guarantees are provided for other operating systems._
+
+This project relies specifically on Docker for Desktop, rather than just the Docker Engine. As such, if you
+are attempting to run this in a linux environment, it may not work as expected.
+
+This is because we rely on TCP rather than a UNIX socket for the connection to the docker daemon, for which
+this provider uses the `host.docker.internal` hostname to connect. That hostname is only configured
+on Docker for Desktop.
+
+Additionally, because of this, you **must** use the Docker provider for KIND (rather than podman which is also supported). This provider relies on the networking implementation of Docker to ensure that we can reach the
+host network from within our KIND cluster, which is what allows us to deploy the CAPI provider in a cluster,
+rather than running it on the host.
+
+## Contributing
 You’ll need a Kubernetes cluster to run against. You can use [KIND](https://sigs.k8s.io/kind) to get a local cluster for testing, or run against a remote cluster.
+
 **Note:** Your controller will automatically use the current context in your kubeconfig file (i.e. whatever cluster `kubectl cluster-info` shows).
 
-### Running on the cluster
+### Running on your dev cluster
 1. Install Instances of Custom Resources:
 
 ```sh
@@ -48,29 +113,11 @@ UnDeploy the controller to the cluster:
 make undeploy
 ```
 
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
 ### How it works
 This project aims to follow the Kubernetes [Operator pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/)
 
 It uses [Controllers](https://kubernetes.io/docs/concepts/architecture/controller/) 
 which provides a reconcile function responsible for synchronizing resources untile the desired state is reached on the cluster 
-
-### Test It Out
-1. Install the CRDs into the cluster:
-
-```sh
-make install
-```
-
-2. Run your controller (this will run in the foreground, so switch to a new terminal if you want to leave it running):
-
-```sh
-make run
-```
-
-**NOTE:** You can also run this in one step by running: `make install run`
 
 ### Modifying the API definitions
 If you are editing the API definitions, generate the manifests such as CRs or CRDs using:
