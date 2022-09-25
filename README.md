@@ -54,8 +54,15 @@ on your local machine. See step 1 under Usage.
    spec:
      nodes:
      - role: control-plane
+   EOF
    ```
-1. Wait for your cluster to be ready: `kubectl wait --for=jsonpath='{.status.ready}'=true kc capi-demo`
+1. Wait for your cluster to be ready: `kubectl wait --for=jsonpath='{.status.ready}'=true kc capi-demo --timeout=5m`
+
+**Note:** due to a limitation in executing kind inside a container, there is a [bug related to networking](https://github.com/kubernetes-sigs/kind/issues/2867)
+which can lead to cluster creation failing. Normally, this gets resolved automatically by the exponential
+back-off retry mechanism built into Kubernetes. However, in some cases it may keep failing. The best thing
+to do in that case is simply delete the cluster with `kubectl delete cluster capi-demo`, and then re-run
+the `kubectl apply` command.
 
 ### Caveats & limitations
 
@@ -77,9 +84,9 @@ This is because we rely on TCP rather than a UNIX socket for the connection to t
 this provider uses the `host.docker.internal` hostname to connect. That hostname is only configured
 on Docker for Desktop.
 
-Additionally, because of this, you **must** use the Docker provider for KIND (rather than podman which is also supported). This provider relies on the networking implementation of Docker to ensure that we can reach the
-host network from within our KIND cluster, which is what allows us to deploy the CAPI provider in a cluster,
-rather than running it on the host.
+Additionally, because of this, you **must** use the Docker provider for KIND (rather than podman which is also supported) for your management cluster. This provider relies on the networkingimplementation of Docker to
+ensure that we can reach the host network from within our KIND cluster, which is what allows us to deploy the
+CAPI provider in a cluster, rather than running it on the host.
 
 ## Contributing
 You’ll need a Kubernetes cluster to run against. You can use [KIND](https://sigs.k8s.io/kind) to get a local cluster for testing, or run against a remote cluster.
